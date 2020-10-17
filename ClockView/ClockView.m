@@ -51,7 +51,8 @@
     [self setMinutehandLayer];
     [self setSecondhandLayer];
     
-    [self setTransform];
+//    [self setTransform];
+    [self fire];
 }
 
 - (void)drawRect:(CGRect)rect {
@@ -100,13 +101,22 @@
             CGFloat textAngel = (M_PI_2 - startAngle) * (180 / M_PI);//记得在这里换算成角度
             
             CGPoint point = [self calcCircleCoordinateWithCenter:newCenter andWithAngle:textAngel andWithRadius:self.outerRingArcRadius - 16 * kScreenHeightCoefficient];
-            UILabel *label = [[UILabel alloc]initWithFrame:CGRectMake(point.x, point.y, 25 * kScreenWidthCoefficient, 19 * kScreenWidthCoefficient)];
-            label.center = point;
-            label.text = tickText;
-            label.textColor = [UIColor greenColor];
-            label.font = [UIFont systemFontOfSize:25];
-            label.textAlignment = NSTextAlignmentCenter;
-            [self addSubview:label];
+//            UILabel *label = [[UILabel alloc]initWithFrame:CGRectMake(point.x, point.y, 25 * kScreenWidthCoefficient, 19 * kScreenWidthCoefficient)];
+//            label.center = point;
+//            label.text = tickText;
+//            label.textColor = [UIColor greenColor];
+//            label.font = [UIFont systemFontOfSize:25];
+//            label.textAlignment = NSTextAlignmentCenter;
+//            [self addSubview:label];
+            
+            CATextLayer*layer=[CATextLayer layer];
+            [layer setFrame:CGRectMake(point.x - 25 * kScreenWidthCoefficient/2, point.y - 19 * kScreenWidthCoefficient/2, 25 * kScreenWidthCoefficient, 19 * kScreenWidthCoefficient)];
+            layer.string=tickText;
+            layer.foregroundColor=[UIColor greenColor].CGColor;
+            layer.font= (__bridge CFTypeRef _Nullable)([UIFont systemFontOfSize:25]);
+            layer.fontSize=25;
+            layer.alignmentMode=kCAAlignmentCenter;
+            [self.layer addSublayer:layer];
         }
     }
     
@@ -127,6 +137,37 @@
     self.hourhandLayer.transform = CATransform3DMakeRotation(hourAngle, 0, 0, 1);
 }
 
+-(void)fire{
+    NSCalendar *calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
+    NSUInteger units = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
+    NSDateComponents *components = [calendar components:units fromDate:[NSDate date]];
+    
+    CGFloat secsAngle = (components.second / 60.0) * M_PI * 2.0;
+    CGFloat minusAngle = ((components.minute + components.second / 60.0) / 60.0 ) * M_PI * 2.0;
+    CGFloat hourAngle = ((components.hour + components.minute / 60.0) / 12.0) * M_PI * 2.0;
+    
+    CABasicAnimation *animation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+    animation.duration = 60.;// 1 min = 60 sec
+    animation.fromValue = @(0.+secsAngle);
+    animation.toValue = @(M_PI * 2.0+secsAngle);
+    animation.repeatCount= DBL_MAX;
+    [self.secondhandLayer addAnimation:animation forKey:@"second"];
+    
+    animation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+    animation.duration = 60.*60.;// 1 h = 60 min
+    animation.fromValue = @(0.+minusAngle);
+    animation.toValue = @(M_PI * 2.0+minusAngle);
+    animation.repeatCount= DBL_MAX;
+    [self.minutehandLayer addAnimation:animation forKey:@"minute"];
+    
+    animation = [CABasicAnimation animationWithKeyPath:@"transform.rotation"];
+    animation.duration = 60.*60.*12.;// 12h
+    animation.fromValue = @(0.+hourAngle);
+    animation.toValue = @(M_PI * 2.0+hourAngle);
+    animation.repeatCount= DBL_MAX;
+    [self.hourhandLayer addAnimation:animation forKey:@"hour"];
+    
+}
 #pragma mark - 设置指针
 
 - (void)setSecondhandLayer {
@@ -152,9 +193,9 @@
 
 - (void)setHourhandLayer {
     NSArray *poinsArray = [NSArray arrayWithObjects:[NSValue valueWithCGPoint:CGPointMake(self.perChordLength / 2, 0)],
-                           [NSValue valueWithCGPoint:CGPointMake(-3 * kScreenWidthCoefficient, self.outerRingArcRadius * 0.55)],
-                           [NSValue valueWithCGPoint:CGPointMake(0, self.outerRingArcRadius * 0.6)],
-                           [NSValue valueWithCGPoint:CGPointMake(3 * kScreenWidthCoefficient, self.outerRingArcRadius * 0.55)], nil];
+                           [NSValue valueWithCGPoint:CGPointMake(-3 * kScreenWidthCoefficient, self.outerRingArcRadius * 0.45)],
+                           [NSValue valueWithCGPoint:CGPointMake(0, self.outerRingArcRadius * 0.5)],
+                           [NSValue valueWithCGPoint:CGPointMake(3 * kScreenWidthCoefficient, self.outerRingArcRadius * 0.45)], nil];
     self.hourhandLayer = [self getShapeLayerWithStartPoints:poinsArray anchorYRate:0.9
                                                   fillColor:[UIColor whiteColor]];
     

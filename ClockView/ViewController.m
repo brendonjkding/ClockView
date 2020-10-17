@@ -25,9 +25,9 @@
     [self initSubViews];
     
     //添加定时器
-    self.timer = [NSTimer timerWithTimeInterval:1.0 target:self selector:@selector(timeChange) userInfo:nil repeats:YES];
-    [[NSRunLoop currentRunLoop] addTimer:self.timer forMode:NSDefaultRunLoopMode];
-    [self timeChange];
+//    self.timer = [NSTimer timerWithTimeInterval:1.0 target:self selector:@selector(timeChange) userInfo:nil repeats:YES];
+//    [[NSRunLoop currentRunLoop] addTimer:self.timer forMode:NSDefaultRunLoopMode];
+//    [self timeChange];
 }
 
 - (void)initSubViews {
