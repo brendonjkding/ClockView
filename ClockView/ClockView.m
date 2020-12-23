@@ -14,6 +14,7 @@
 #define kScreenHeightCoefficient kScreenHeight * 3 / 1280
 
 #import "ClockView.h"
+#import <CoreText/CoreText.h>
 
 @interface ClockView ()
 
@@ -54,11 +55,53 @@
 //    [self setTransform];
     [self fire];
 }
+- (UIBezierPath *)getStringLayer:(NSString *)str{
+    //创建可变path
+    CGMutablePathRef letters = CGPathCreateMutable();
+    //设置字体
+    NSDictionary *attrs = [NSDictionary dictionaryWithObjectsAndKeys:
+                           [UIFont systemFontOfSize:25], kCTFontAttributeName,
+                           nil];
+    NSAttributedString *attrString = [[NSAttributedString alloc] initWithString:str
+                                                                     attributes:attrs];
+    //根据字符串创建 line
+    CTLineRef line = CTLineCreateWithAttributedString((CFAttributedStringRef)attrString);
+    //获取每一个字符作为数组
+    CFArrayRef runArray = CTLineGetGlyphRuns(line);
 
-- (void)drawRect:(CGRect)rect {
-    //    [@"北京时间" drawInRect :CGRectMake(self.bounds.size.width / 2 - 140 / 2, self.bounds.size.height / 2 - 100, 140, 200) withAttributes :@{NSFontAttributeName:[UIFont systemFontOfSize:30], NSForegroundColorAttributeName:[UIColor redColor]}];
+    // 遍历字符数组
+    for (CFIndex runIndex = 0; runIndex < CFArrayGetCount(runArray); runIndex++)
+    {
+        // Get FONT for this run
+        CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runArray, runIndex);
+        CTFontRef runFont = CFDictionaryGetValue(CTRunGetAttributes(run), kCTFontAttributeName);
+
+        // for each GLYPH in run
+        for (CFIndex runGlyphIndex = 0; runGlyphIndex < CTRunGetGlyphCount(run); runGlyphIndex++)
+        {
+            // get Glyph & Glyph-data
+            CFRange thisGlyphRange = CFRangeMake(runGlyphIndex, 1);
+            CGGlyph glyph;
+            CGPoint position;
+            CTRunGetGlyphs(run, thisGlyphRange, &glyph);
+            CTRunGetPositions(run, thisGlyphRange, &position);
+
+            // Get PATH of outline
+            {
+                CGPathRef letter = CTFontCreatePathForGlyph(runFont, glyph, NULL);
+                CGAffineTransform t = CGAffineTransformMakeTranslation(position.x, position.y);
+                CGPathAddPath(letters, &t, letter);
+                CGPathRelease(letter);
+            }
+        }
+    }
+    CFRelease(line);
+    UIBezierPath *path = [UIBezierPath bezierPath];
+    [path moveToPoint:CGPointZero];
+    [path appendPath:[UIBezierPath bezierPathWithCGPath:letters]];
+    CGPathRelease(letters);
+    return path;
 }
-
 - (void)drawClock {
     CAShapeLayer *shapeLayer = [CAShapeLayer layer];
     shapeLayer.fillColor = [UIColor greenColor].CGColor;
@@ -71,8 +114,91 @@
     self.dotsLayer = [self getDotsShapeLayer];
     [self.layer addSublayer:self.dotsLayer];
     
+    CALayer *_hourLayer=[CALayer layer];
+    CALayer *_hourLayerMask=[CALayer layer];
+    _hourLayer.mask=_hourLayerMask;
+
+    CALayer *_secondLayer=[CALayer layer];
+    CALayer *_secondLayerMask=[CALayer layer];
+    _secondLayer.mask=_secondLayerMask;
+
+    [_hourLayer setFrame:self.layer.bounds];
+    [_hourLayerMask setFrame:self.layer.bounds];
+    [_secondLayer setFrame:self.layer.bounds];
+    [_secondLayerMask setFrame:self.layer.bounds];
+
+    [self.layer addSublayer:_hourLayer];
+    [self.layer addSublayer:_secondLayer];
+    [_hourLayer setBackgroundColor:[UIColor greenColor].CGColor];
+    [_secondLayer setBackgroundColor:[UIColor yellowColor].CGColor];
+
+    double duration=24.;
+    NSMutableArray<NSNumber*> *keyTimes=[NSMutableArray new];
+    NSMutableArray *colors = [NSMutableArray array];
+
+    // hour/dots 
+    for (int deg = 0; deg <= 360; deg += 5) {
+        int degg = (deg+0)%361;
+        if(degg==200) {
+            deg+=80;
+            continue;
+        }
+        // NSLog(@"%d",degg);
+        UIColor *color;
+        color = [UIColor colorWithHue:1.0 * degg / 360.0
+                           saturation:1.0
+                           brightness:1.0
+                                alpha:1.0];
+        [colors addObject:(id)[color CGColor]];
+
+        if(deg>210) [keyTimes addObject:@((deg-60)/279.)];
+        else [keyTimes addObject:@(deg/279.)];
+    }
+
+
+    CAKeyframeAnimation *animation = [CAKeyframeAnimation animationWithKeyPath:@"backgroundColor"];
+    animation.keyTimes = keyTimes;
+    animation.values = colors;
+    animation.duration = duration;
+    animation.calculationMode = kCAAnimationLinear;
+    animation.fillMode = kCAFillModeForwards;
+    animation.removedOnCompletion = NO;
+    animation.repeatCount = DBL_MAX;
+    [_hourLayer addAnimation:animation forKey:@"hourColor"];
+    [_dotsLayer addAnimation:animation forKey:@"dotsColor"];
+
+    // second
+    colors = [NSMutableArray array];
+
+    for (int deg = 0; deg <= 360; deg += 5) {
+        int degg = (deg+140)%360;
+        if(degg==200) {
+            deg+=80;
+            continue;
+        }
+        // NSLog(@"%d",degg);
+        UIColor *color;
+        color = [UIColor colorWithHue:1.0 * degg / 360.0
+                           saturation:1.0
+                           brightness:1.0
+                                alpha:1.0];
+        [colors addObject:(id)[color CGColor]];
+    }
+
+    animation = [CAKeyframeAnimation animationWithKeyPath:@"backgroundColor"];
+    animation.keyTimes = keyTimes;
+    animation.values = colors;
+    animation.duration = duration;
+    animation.calculationMode = kCAAnimationLinear;
+    animation.fillMode = kCAFillModeForwards;
+    animation.removedOnCompletion = NO;
+    animation.repeatCount = DBL_MAX;
+    [_secondLayer addAnimation:animation forKey:@"secondColor"];
+
+
+
     //画表盘边缘刻度
-    for (NSInteger i = 0; i < 60; i++) {
+    for (int i = 0; i < 60; i++) {
         CGFloat startAngle = perAngle * i;
         CGFloat endAngle = startAngle + perAngle / 5;
         
@@ -89,11 +215,10 @@
         }
         
         perLayer.path = bezierPath.CGPath;
-        [self.layer addSublayer:perLayer];
         
         //添加刻度说明
         if (i % 5 == 0){
-            NSString *tickText = [NSString stringWithFormat:@"%ld", (i / 5)];
+            NSString *tickText = [NSString stringWithFormat:@"%d", (i / 5)];
             if (i == 0) {
                 tickText = @"12";
             }
@@ -109,14 +234,21 @@
 //            label.textAlignment = NSTextAlignmentCenter;
 //            [self addSubview:label];
             
-            CATextLayer*layer=[CATextLayer layer];
+
+            CAShapeLayer*layer=[CAShapeLayer layer];
+            layer.geometryFlipped = YES;
             [layer setFrame:CGRectMake(point.x - 25 * kScreenWidthCoefficient/2, point.y - 19 * kScreenWidthCoefficient/2, 25 * kScreenWidthCoefficient, 19 * kScreenWidthCoefficient)];
-            layer.string=tickText;
-            layer.foregroundColor=[UIColor greenColor].CGColor;
-            layer.font= (__bridge CFTypeRef _Nullable)([UIFont systemFontOfSize:25]);
-            layer.fontSize=25;
-            layer.alignmentMode=kCAAlignmentCenter;
-            [self.layer addSublayer:layer];
+            UIBezierPath* path=[self getStringLayer:tickText];
+            layer.path = path.CGPath;
+            layer.bounds=CGPathGetBoundingBox(path.CGPath);
+
+            [_hourLayerMask addSublayer:layer];
+
+
+            [_hourLayerMask addSublayer:perLayer];
+        }
+        else{
+            [_secondLayerMask addSublayer:perLayer];
         }
     }
     
@@ -138,6 +270,10 @@
 }
 
 -(void)fire{
+    [self.secondhandLayer removeAllAnimations];
+    [self.minutehandLayer removeAllAnimations];
+    [self.hourhandLayer removeAllAnimations];
+
     NSCalendar *calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
     NSUInteger units = NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitSecond;
     NSDateComponents *components = [calendar components:units fromDate:[NSDate date]];
